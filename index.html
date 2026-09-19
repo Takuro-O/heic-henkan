@@ -158,11 +158,11 @@
   <div class="footer-note">
     ・変換には数秒〜十数秒かかる場合があります（ファイルサイズによります）<br>
     ・大量のファイルを一度に変換すると時間がかかることがあります<br>
-    ・変換処理には heic2any（オープンソースライブラリ）を使用しています
+    ・変換処理には heic-to（オープンソースライブラリ、libheif 1.21系ベース）を使用しています
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic-to@1.4.2/dist/iife/heic-to.js"></script>
 <script>
 (function () {
   let items = []; // { id, file, name, sizeLabel, status, blobUrl, error, thumbUrl }
@@ -247,24 +247,23 @@
     it.error = null;
     render();
 
-    if (typeof heic2any !== 'function') {
+    if (typeof HeicTo !== 'function') {
       it.status = 'error';
       it.error = 'ライブラリの読み込み失敗';
-      console.error('heic2any library is not loaded (CDN blocked or failed to fetch).');
+      console.error('HeicTo library is not loaded (CDN blocked or failed to fetch).');
       render();
       return;
     }
 
     try {
       const quality = parseFloat(qualityInput.value);
-      const resultBlob = await heic2any({ blob: it.file, toType: 'image/jpeg', quality });
-      const blob = Array.isArray(resultBlob) ? resultBlob[0] : resultBlob;
+      const blob = await HeicTo({ blob: it.file, type: 'image/jpeg', quality });
       if (it.blobUrl) URL.revokeObjectURL(it.blobUrl);
       it.blobUrl = URL.createObjectURL(blob);
       it.blob = blob;
       it.status = 'done';
     } catch (err) {
-      console.error('heic2any conversion error:', err);
+      console.error('HeicTo conversion error:', err);
       it.status = 'error';
       // Show the real reason instead of hiding it, so it can be diagnosed.
       const msg = (err && (err.message || err.code || String(err))) || '不明なエラー';
