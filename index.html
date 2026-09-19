@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>HEIC → JPG 変換ツール</title>
+<style>
+  :root {
+    --c-bg: #ffffff;
+    --c-surface: #f8f9fa;
+    --c-border: #eeeeee;
+    --c-text: #1a1a1a;
+    --c-sub: #888888;
+    --c-primary: #2563eb;
+    --c-primary-light: #eff6ff;
+    --c-danger: #ef4444;
+    --c-success: #22c55e;
+    --radius-s: 6px;
+    --radius-m: 10px;
+    --radius-l: 14px;
+    --shadow-card: 0 1px 4px rgba(0,0,0,0.07);
+    --shadow-modal: 0 8px 32px rgba(0,0,0,0.15);
+    --transition: 0.15s ease;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: var(--c-bg); color: var(--c-text);
+    font-size: 14px; line-height: 1.6;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, select { font-family: inherit; font-size: 14px; }
+
+  #app {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .sub { color: var(--c-sub); font-size: 13px; margin-bottom: 28px; }
+
+  .hoverable { transition: background var(--transition), opacity var(--transition), box-shadow var(--transition); }
+  .hoverable:hover { opacity: 0.85; }
+  .hoverable:active { opacity: 0.7; }
+
+  #dropzone {
+    border: 2px dashed var(--c-border);
+    border-radius: var(--radius-l);
+    background: var(--c-surface);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+  }
+  #dropzone.drag { border-color: var(--c-primary); background: var(--c-primary-light); }
+  #dropzone .icon { font-size: 40px; margin-bottom: 12px; }
+  #dropzone .main-text { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  #dropzone .sub-text { font-size: 12px; color: var(--c-sub); }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 24px 0 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .toolbar-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .field { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--c-sub); }
+  .field select, .field input[type=range] { cursor: pointer; }
+  select {
+    height: 32px; padding: 0 10px; border: 1.5px solid var(--c-border);
+    border-radius: var(--radius-s); background: var(--c-bg); outline: none;
+  }
+
+  .btn-primary {
+    height: 38px; padding: 0 18px; background: var(--c-primary); color: #fff;
+    border: none; border-radius: var(--radius-s); font-size: 14px; font-weight: 600;
+  }
+  .btn-primary:disabled { background: #b9c9f2; cursor: not-allowed; }
+  .btn-secondary {
+    height: 38px; padding: 0 16px; background: transparent; color: var(--c-sub);
+    border: 1px solid var(--c-border); border-radius: var(--radius-s); font-size: 13px;
+  }
+
+  .list { display: flex; flex-direction: column; gap: 10px; }
+  .item {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--c-bg); border: 1px solid var(--c-border); border-radius: var(--radius-m);
+    padding: 12px 16px; box-shadow: var(--shadow-card);
+  }
+  .thumb {
+    width: 48px; height: 48px; border-radius: var(--radius-s); object-fit: cover;
+    background: var(--c-surface); flex-shrink: 0;
+  }
+  .thumb.placeholder { display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-meta { font-size: 12px; color: var(--c-sub); margin-top: 2px; }
+  .item-status { font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .status-wait { color: var(--c-sub); }
+  .status-doing { color: var(--c-primary); }
+  .status-done { color: var(--c-success); }
+  .status-error { color: var(--c-danger); }
+  .item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: var(--radius-s); border: 1px solid var(--c-border);
+    background: var(--c-bg); font-size: 13px; display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn.download { border-color: var(--c-primary); color: var(--c-primary); }
+  .icon-btn.remove { border-color: var(--c-danger); color: var(--c-danger); }
+
+  .empty { text-align: center; padding: 60px 24px; color: var(--c-sub); }
+  .empty .icon { font-size: 40px; margin-bottom: 12px; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: var(--radius-m);
+    color: #fff; font-size: 14px; font-weight: 600; z-index: 999; box-shadow: var(--shadow-modal);
+    animation: toastIn 0.2s ease;
+  }
+  @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+  .footer-note { margin-top: 32px; font-size: 12px; color: var(--c-sub); line-height: 1.7; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>HEIC → JPG 変換ツール</h1>
+  <div class="sub">ファイルはブラウザ内だけで処理されます。サーバーへのアップロードは行われません。</div>
+
+  <div id="dropzone">
+    <div class="icon">📁</div>
+    <div class="main-text">ここにHEICファイルをドラッグ＆ドロップ</div>
+    <div class="sub-text">または、クリックしてファイルを選択（複数選択可）</div>
+    <input id="file-input" type="file" accept=".heic,.HEIC,image/heic,image/heif" multiple style="display:none;">
+  </div>
+
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="field">
+        画質
+        <input id="quality" type="range" min="0.5" max="1" step="0.05" value="0.9">
+        <span id="quality-val">90%</span>
+      </div>
+      <button id="btn-convert-all" class="btn-primary hoverable" disabled>すべて変換</button>
+      <button id="btn-download-all" class="btn-secondary hoverable" disabled>すべてダウンロード</button>
+    </div>
+    <button id="btn-clear" class="btn-secondary hoverable">リストをクリア</button>
+  </div>
+
+  <div id="list" class="list"></div>
+  <div id="empty" class="empty">
+    <div class="icon">🖼️</div>
+    <div style="font-size:15px;font-weight:600;color:var(--c-text);margin-bottom:6px;">まだファイルがありません</div>
+    <div>上のエリアにHEICファイルを追加してください</div>
+  </div>
+
+  <div class="footer-note">
+    ・変換には数秒〜十数秒かかる場合があります（ファイルサイズによります）<br>
+    ・大量のファイルを一度に変換すると時間がかかることがあります<br>
+    ・変換処理には heic2any（オープンソースライブラリ）を使用しています
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script>
+(function () {
+  let items = []; // { id, file, name, sizeLabel, status, blobUrl, error, thumbUrl }
+  let nextId = 1;
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('empty');
+  const qualityInput = document.getElementById('quality');
+  const qualityVal = document.getElementById('quality-val');
+  const btnConvertAll = document.getElementById('btn-convert-all');
+  const btnDownloadAll = document.getElementById('btn-download-all');
+  const btnClear = document.getElementById('btn-clear');
+
+  qualityInput.addEventListener('input', () => {
+    qualityVal.textContent = Math.round(qualityInput.value * 100) + '%';
+  });
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    addFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => {
+    addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+
+  function isHeic(file) {
+    const n = file.name.toLowerCase();
+    return n.endsWith('.heic') || n.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function addFiles(fileList) {
+    const files = Array.from(fileList || []);
+    const valid = files.filter(isHeic);
+    const invalidCount = files.length - valid.length;
+    if (invalidCount > 0) {
+      showToast(`${invalidCount}件はHEIC形式ではないためスキップしました`, 'error');
+    }
+    valid.forEach(file => {
+      items.push({
+        id: nextId++,
+        file,
+        name: file.name,
+        sizeLabel: formatSize(file.size),
+        status: 'wait',
+        blobUrl: null,
+        error: null,
+      });
+    });
+    render();
+  }
+
+  function removeItem(id) {
+    const it = items.find(i => i.id === id);
+    if (it && it.blobUrl) URL.revokeObjectURL(it.blobUrl);
+    items = items.filter(i => i.id !== id);
+    render();
+  }
+
+  function clearAll() {
+    if (items.length === 0) return;
+    if (!confirm('リストをすべてクリアしますか？（未ダウンロードの変換結果も消えます）')) return;
+    items.forEach(it => { if (it.blobUrl) URL.revokeObjectURL(it.blobUrl); });
+    items = [];
+    render();
+  }
+
+  async function convertItem(it) {
+    it.status = 'doing';
+    it.error = null;
+    render();
+    try {
+      const quality = parseFloat(qualityInput.value);
+      const resultBlob = await heic2any({ blob: it.file, toType: 'image/jpeg', quality });
+      const blob = Array.isArray(resultBlob) ? resultBlob[0] : resultBlob;
+      if (it.blobUrl) URL.revokeObjectURL(it.blobUrl);
+      it.blobUrl = URL.createObjectURL(blob);
+      it.blob = blob;
+      it.status = 'done';
+    } catch (err) {
+      console.error(err);
+      it.status = 'error';
+      it.error = '変換に失敗しました';
+    }
+    render();
+  }
+
+  async function convertAll() {
+    const targets = items.filter(i => i.status === 'wait' || i.status === 'error');
+    if (targets.length === 0) return;
+    setLoading(btnConvertAll, true);
+    for (const it of targets) {
+      await convertItem(it);
+    }
+    setLoading(btnConvertAll, false);
+    showToast('変換が完了しました');
+  }
+
+  function setLoading(btn, loading) {
+    btn.disabled = loading;
+    btn.dataset.label ??= btn.textContent;
+    btn.textContent = loading ? '変換中…' : btn.dataset.label;
+  }
+
+  function downloadItem(it) {
+    if (!it.blobUrl) return;
+    const a = document.createElement('a');
+    a.href = it.blobUrl;
+    a.download = it.name.replace(/\.(heic|heif)$/i, '') + '.jpg';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function downloadAll() {
+    const done = items.filter(i => i.status === 'done');
+    if (done.length === 0) return;
+    done.forEach((it, idx) => {
+      setTimeout(() => downloadItem(it), idx * 300);
+    });
+  }
+
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    t.style.background = type === 'error' ? 'var(--c-danger)' : 'var(--c-success)';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  function statusLabel(it) {
+    switch (it.status) {
+      case 'wait': return { text: '未変換', cls: 'status-wait' };
+      case 'doing': return { text: '変換中…', cls: 'status-doing' };
+      case 'done': return { text: '完了 ✓', cls: 'status-done' };
+      case 'error': return { text: it.error || 'エラー', cls: 'status-error' };
+    }
+  }
+
+  function render() {
+    emptyEl.style.display = items.length === 0 ? 'block' : 'none';
+    listEl.style.display = items.length === 0 ? 'none' : 'flex';
+
+    const anyConvertible = items.some(i => i.status === 'wait' || i.status === 'error');
+    const anyDone = items.some(i => i.status === 'done');
+    btnConvertAll.disabled = !anyConvertible;
+    btnDownloadAll.disabled = !anyDone;
+
+    listEl.innerHTML = items.map(it => {
+      const s = statusLabel(it);
+      const thumb = it.status === 'done'
+        ? `<img class="thumb" src="${it.blobUrl}" alt="">`
+        : `<div class="thumb placeholder">🖼️</div>`;
+      const actions = it.status === 'done'
+        ? `<button class="icon-btn download hoverable" onclick="app.download(${it.id})" title="ダウンロード">⬇</button>`
+        : `<button class="icon-btn hoverable" onclick="app.convertOne(${it.id})" title="変換する" ${it.status === 'doing' ? 'disabled' : ''}>▶</button>`;
+      return `
+        <div class="item">
+          ${thumb}
+          <div class="item-info">
+            <div class="item-name">${escapeHtml(it.name)}</div>
+            <div class="item-meta">${it.sizeLabel}</div>
+          </div>
+          <div class="item-status ${s.cls}">${s.text}</div>
+          <div class="item-actions">
+            ${actions}
+            <button class="icon-btn remove hoverable" onclick="app.remove(${it.id})" title="削除">✕</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  btnConvertAll.addEventListener('click', convertAll);
+  btnDownloadAll.addEventListener('click', downloadAll);
+  btnClear.addEventListener('click', clearAll);
+
+  window.app = {
+    convertOne: id => {
+      const it = items.find(i => i.id === id);
+      if (it) convertItem(it);
+    },
+    download: id => {
+      const it = items.find(i => i.id === id);
+      if (it) downloadItem(it);
+    },
+    remove: removeItem,
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>
