@@ -97,7 +97,7 @@
   .item-info { flex: 1; min-width: 0; }
   .item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item-meta { font-size: 12px; color: var(--c-sub); margin-top: 2px; }
-  .item-status { font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .item-status { font-size: 12px; font-weight: 600; flex-shrink: 0; max-width: 220px; text-align: right; white-space: normal; }
   .status-wait { color: var(--c-sub); }
   .status-doing { color: var(--c-primary); }
   .status-done { color: var(--c-success); }
@@ -246,6 +246,15 @@
     it.status = 'doing';
     it.error = null;
     render();
+
+    if (typeof heic2any !== 'function') {
+      it.status = 'error';
+      it.error = 'ライブラリの読み込み失敗';
+      console.error('heic2any library is not loaded (CDN blocked or failed to fetch).');
+      render();
+      return;
+    }
+
     try {
       const quality = parseFloat(qualityInput.value);
       const resultBlob = await heic2any({ blob: it.file, toType: 'image/jpeg', quality });
@@ -255,9 +264,11 @@
       it.blob = blob;
       it.status = 'done';
     } catch (err) {
-      console.error(err);
+      console.error('heic2any conversion error:', err);
       it.status = 'error';
-      it.error = '変換に失敗しました';
+      // Show the real reason instead of hiding it, so it can be diagnosed.
+      const msg = (err && (err.message || err.code || String(err))) || '不明なエラー';
+      it.error = '失敗: ' + msg;
     }
     render();
   }
